@@ -1,6 +1,10 @@
 <?php
 
+<<<<<<< HEAD
 namespace Database\Seeders;
+=======
+namespace Database\Seeder;
+>>>>>>> lb3
 
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;

@@ -8,7 +8,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\UserRoleController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ChangeLogController; // Импортируем новый контроллер для логов изменений
+use App\Http\Controllers\ChangeLogController;
 use App\Http\Middleware\AuthenticateApiToken;
 
 Route::get('/test', function () {
@@ -20,6 +20,11 @@ Route::prefix('auth')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
     Route::post('register', [AuthController::class, 'register']);
 
+    // Новые маршруты для 2FA (Пункт 16)
+    // Эти маршруты не требуют обычного Access Token, но требуют временный 2FA токен (Пункт 5, 14, 15)
+    Route::post('2fa/request-code', [AuthController::class, 'requestTwoFactorCode']); // Запрос нового кода
+    Route::post('2fa/verify-code', [AuthController::class, 'verifyTwoFactorCode']);   // Подтверждение кода
+
     Route::middleware([AuthenticateApiToken::class])->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('out', [AuthController::class, 'logout']);
@@ -27,6 +32,9 @@ Route::prefix('auth')->group(function () {
         Route::post('out_all', [AuthController::class, 'logoutAll']);
         Route::post('refresh', [AuthController::class, 'refresh']);
         Route::post('change_password', [AuthController::class, 'changePassword']);
+
+        // Маршрут для включения/отключения 2FA (Пункт 16.c)
+        Route::post('2fa/toggle', [AuthController::class, 'toggleTwoFactorAuth']);
     });
 });
 
@@ -79,12 +87,7 @@ Route::prefix('users')->middleware([AuthenticateApiToken::class])->group(functio
 });
 
 // Группа роутов для управления логами изменений
-// (Пункт 11, 12)
 Route::prefix('change-logs')->middleware([AuthenticateApiToken::class])->group(function () {
-    // Получить все логи изменений (только для админов)
     Route::get('/', [ChangeLogController::class, 'index']);
-
-    // Маршрут для отката записи к предыдущему состоянию
-    // POST /api/change-logs/{id}/revert
-    Route::post('{changeLog}/revert', [ChangeLogController::class, 'revert']); // Пункт 21
+    Route::post('{changeLog}/revert', [ChangeLogController::class, 'revert']);
 });

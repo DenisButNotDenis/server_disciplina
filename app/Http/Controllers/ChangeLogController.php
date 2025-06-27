@@ -8,9 +8,12 @@ use App\Models\Role; // Для отката
 use App\Models\Permission; // Для отката
 use App\Http\DTOs\ChangeLog\ChangeLogResourceDTO;
 use App\Http\DTOs\ChangeLog\ChangeLogCollectionDTO;
+<<<<<<< HEAD
 use App\Http\DTOs\User\UserResourceDTO; // Для отката пользователя
 use App\Http\DTOs\Role\RoleResourceDTO; // Для отката роли
 use App\Http\DTOs\Permission\PermissionResourceDTO; // Для отката разрешения
+=======
+>>>>>>> lb3
 use Illuminate\Http\JsonResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Auth;
@@ -27,18 +30,29 @@ class ChangeLogController extends Controller
     /**
      * Получить список всех логов изменений.
      * (GET /api/change-logs)
+<<<<<<< HEAD
      * (Пункт 17, 18 - Проверка доступа: get-story-all)
+=======
+     * (Пункт 17, 18 - Проверка доступа: get-story-all или get-list-changelog)
+>>>>>>> lb3
      * @return JsonResponse
      */
     public function index(): JsonResponse
     {
         // Для просмотра всех логов, обычно требуется разрешение администратора.
+<<<<<<< HEAD
+=======
+        // Используем 'get-story-all' или 'get-list-changelog'
+>>>>>>> lb3
         if (!Auth::check() || !Auth::user()->hasPermission('get-story-all')) {
             throw new AccessDeniedHttpException('Необходимое разрешение: get-story-all');
         }
 
         $changeLogs = ChangeLog::orderBy('created_at', 'desc')->get();
+<<<<<<< HEAD
         // Используем fromModel() для каждого DTO, чтобы применить логику diff
+=======
+>>>>>>> lb3
         return response()->json(ChangeLogCollectionDTO::collect($changeLogs)->toArray(), 200);
     }
 
@@ -140,8 +154,12 @@ class ChangeLogController extends Controller
             $modelId = $changeLog->mutatable_id;
 
             // Находим мутировавшую модель
+<<<<<<< HEAD
             // withTrashed() чтобы найти ее, даже если она была мягко удалена
             $model = $modelClass::withTrashed()->find($modelId);
+=======
+            $model = $modelClass::withTrashed()->find($modelId); // Используем withTrashed на случай, если запись была мягко удалена
+>>>>>>> lb3
 
             if (!$model) {
                 throw new ModelNotFoundException("Mutated entity of type {$modelClass} with ID {$modelId} not found.");
@@ -152,7 +170,10 @@ class ChangeLogController extends Controller
 
             if ($changeLog->event === 'created') {
                 // Если запись была создана, откат означает её удаление.
+<<<<<<< HEAD
                 // Для ЛР4, это будет жесткое удаление, чтобы убрать запись полностью.
+=======
+>>>>>>> lb3
                 $model->forceDelete();
                 return response()->json(['message' => 'Successfully reverted "created" event by deleting the record.'], 200);
             } elseif ($changeLog->event === 'updated') {
@@ -161,6 +182,7 @@ class ChangeLogController extends Controller
                 $model->fill($revertToValues);
                 $model->save(); // Сохраняем модель с старыми значениями
 
+<<<<<<< HEAD
                 // Обработка SoftDeletes при откате
                 if ($model->trashed() && (empty($revertToValues['deleted_at']) || $revertToValues['deleted_at'] === null)) {
                     // Если сейчас удалена, но откатываемся к состоянию "не удалена"
@@ -186,15 +208,34 @@ class ChangeLogController extends Controller
                     default:
                         $revertedDTO = $model->toArray();
                         break;
+=======
+                // Если модель была мягко удалена, а в old_values нет deleted_at,
+                // то она восстановится при save(). Если old_values содержит deleted_at,
+                // то она останется удаленной.
+                if ($model->trashed() && empty($revertToValues['deleted_at'])) {
+                    $model->restore(); // Дополнительно восстановим, если она была удалена,
+                                       // но откатываемся к состоянию, когда она не была удалена.
+                } elseif (!$model->trashed() && !empty($revertToValues['deleted_at'])) {
+                    // Если сейчас активна, но откатываемся к удаленному состоянию
+                    $model->delete(); // Мягко удалим
+>>>>>>> lb3
                 }
 
                 return response()->json([
                     'message' => 'Successfully reverted "updated" event.',
+<<<<<<< HEAD
                     'reverted_entity' => $revertedDTO
+=======
+                    'reverted_entity' => \App\Http\DTOs\User\UserResourceDTO::fromModel($model)->toArray() // Возвращаем DTO обновленной сущности
+>>>>>>> lb3
                 ], 200);
             }
 
             return response()->json(['message' => 'Revert not applicable for this log event.'], 400);
         });
     }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> lb3
