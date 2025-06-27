@@ -10,7 +10,8 @@ use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ChangeLogController;
 use App\Http\Controllers\GitWebhookController;
-use App\Http\Controllers\LogRequestController; // Импортируем новый контроллер для логов запросов
+use App\Http\Controllers\LogRequestController;
+use App\Http\Controllers\ReportController; // Импортируем новый контроллер для отчетов
 use App\Http\Middleware\AuthenticateApiToken;
 
 Route::get('/test', function () {
@@ -96,12 +97,14 @@ Route::prefix('change-logs')->middleware([AuthenticateApiToken::class])->group(f
 // Маршрут для Git Webhook
 Route::post('/hooks/git', [GitWebhookController::class, 'handle']);
 
-// Новая группа роутов для управления логами запросов (LogsRequests)
-// (Пункт 12)
+// Группа роутов для управления логами запросов
 Route::prefix('request-logs')->middleware([AuthenticateApiToken::class])->group(function () {
-    // Получить список всех логов запросов (GET /api/request-logs)
     Route::get('/', [LogRequestController::class, 'index']);
-
-    // Получить детальную информацию об одном логе по ID (GET /api/request-logs/{id})
     Route::get('/{id}', [LogRequestController::class, 'show']);
+});
+
+// Новая группа роутов для генерации отчетов
+Route::prefix('reports')->middleware([AuthenticateApiToken::class])->group(function () {
+    // Маршрут для запуска генерации отчета (Пункт 5)
+    Route::post('generate', [ReportController::class, 'generateReport']);
 });
