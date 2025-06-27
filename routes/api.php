@@ -9,7 +9,8 @@ use App\Http\Controllers\UserRoleController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ChangeLogController;
-use App\Http\Controllers\GitWebhookController; // Импортируем новый контроллер
+use App\Http\Controllers\GitWebhookController;
+use App\Http\Controllers\LogRequestController; // Импортируем новый контроллер для логов запросов
 use App\Http\Middleware\AuthenticateApiToken;
 
 Route::get('/test', function () {
@@ -21,7 +22,7 @@ Route::prefix('auth')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
     Route::post('register', [AuthController::class, 'register']);
 
-    // Новые маршруты для 2FA
+    // Маршруты для 2FA
     Route::post('2fa/request-code', [AuthController::class, 'requestTwoFactorCode']);
     Route::post('2fa/verify-code', [AuthController::class, 'verifyTwoFactorCode']);
 
@@ -92,5 +93,15 @@ Route::prefix('change-logs')->middleware([AuthenticateApiToken::class])->group(f
     Route::post('{changeLog}/revert', [ChangeLogController::class, 'revert']);
 });
 
-// Маршрут для Git Webhook (Пункт 2, 3)
+// Маршрут для Git Webhook
 Route::post('/hooks/git', [GitWebhookController::class, 'handle']);
+
+// Новая группа роутов для управления логами запросов (LogsRequests)
+// (Пункт 12)
+Route::prefix('request-logs')->middleware([AuthenticateApiToken::class])->group(function () {
+    // Получить список всех логов запросов (GET /api/request-logs)
+    Route::get('/', [LogRequestController::class, 'index']);
+
+    // Получить детальную информацию об одном логе по ID (GET /api/request-logs/{id})
+    Route::get('/{id}', [LogRequestController::class, 'show']);
+});
