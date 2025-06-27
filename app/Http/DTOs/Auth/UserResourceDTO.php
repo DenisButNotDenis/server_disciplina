@@ -5,15 +5,12 @@ namespace App\Http\DTOs\Auth;
 use Spatie\LaravelData\Data;
 use Carbon\Carbon;
 use App\Http\DTOs\Role\RoleCollectionDTO; // Для ЛР3, если используется
+use App\Http\DTOs\Role\RoleResourceDTO; // Импортируем RoleResourceDTO для маппинга
 
 /**
  * Класс DTO для вывода информации о пользователе.
  */
-final readonly class UserResourceDTO extends Data
-use App\Models\User; // Нужна модель User
-use Carbon\Carbon;
-
-class UserResourceDTO
+final class UserResourceDTO extends Data
 {
     public function __construct(
         public int $id,
@@ -40,6 +37,15 @@ class UserResourceDTO
             $user->load('roles');
         }
 
+        // ИСПРАВЛЕНИЕ: Прямое создание RoleCollectionDTO с двумя аргументами,
+        // чтобы обойти ошибку "Too few arguments". Это обходной путь,
+        // который обычно не требуется, если spatie/laravel-data установлен корректно
+        // и метод collect() доступен.
+        $roleCollection = new RoleCollectionDTO(
+            RoleResourceDTO::class, // Первый аргумент: класс DTO элементов коллекции
+            $user->roles->map(fn ($role) => RoleResourceDTO::fromModel($role)) // Второй аргумент: итерируемые данные
+        );
+
         return new self(
             id: $user->id,
             username: $user->username,
@@ -48,24 +54,8 @@ class UserResourceDTO
             createdAt: $user->created_at,
             updatedAt: $user->updated_at,
             deletedAt: $user->deleted_at,
-            roles: RoleCollectionDTO::collect($user->roles), // Для ЛР3
-            isTwoFactorEnabled: $user->is_2fa_enabled, // Передаем статус 2FA
-            emailVerifiedAt: $user->email_verified_at,
-            createdAt: $user->created_at,
-            updatedAt: $user->updated_at
+            roles: $roleCollection, // Передаем преобразованную коллекцию ролей
+            isTwoFactorEnabled: (bool) $user->is_2fa_enabled, // Приводим к boolean явно
         );
-    }
-
-    public function toArray(): array
-    {
-        return [
-            'id' => $this->id,
-            'username' => $this->username,
-            'email' => $this->email,
-            'birthday' => $this->birthday->format('Y-m-d'),
-            'email_verified_at' => $this->emailVerifiedAt?->toDateTimeString(), // Если null, то не форматируем
-            'created_at' => $this->createdAt->toDateTimeString(),
-            'updated_at' => $this->updatedAt->toDateTimeString(),
-        ];
     }
 }
