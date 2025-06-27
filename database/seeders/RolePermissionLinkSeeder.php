@@ -11,7 +11,7 @@ class RolePermissionLinkSeeder extends Seeder
 {
     /**
      * Запускает сид для настройки связок ролей и разрешений.
-     * (Пункт 28, а также новые разрешения для ЛР9)
+     * (Пункт 28, а также новые разрешения для ЛР9, ЛР10)
      */
     public function run(): void
     {
@@ -27,41 +27,42 @@ class RolePermissionLinkSeeder extends Seeder
         }
 
         // --- Админ может все ---
-        // Получаем все разрешения, включая новые из ЛР9
         $allPermissions = Permission::all()->pluck('id');
-        // Прикрепляем все разрешения к роли "admin"
         $adminRole->permissions()->sync($allPermissions);
 
-        // --- Пользовательские разрешения (обновите, если нужно) ---
+        // --- Пользовательские разрешения ---
         $userPermissions = [
-            'get-list-user',     // Может получить список пользователей
-            'read-user',         // Может читать информацию о пользователях
-            'update-user',       // Может обновлять информацию о пользователях
-            'read-role',         // Может читать информацию о ролях
-            'read-permission',   // Может читать информацию о разрешениях
-            'get-story-user',    // Пользователь может просматривать свою историю
-            // Разрешения для мессенджеров (пользователь может управлять своими связками)
-            'get-list-messenger', // Может видеть список доступных мессенджеров (с учетом среды)
-            'read-messenger',     // Может читать информацию о мессенджерах
-            'create-user_messenger', // Может прикреплять мессенджеры к себе
-            'read-user_messenger',   // Может видеть свои прикрепленные мессенджеры
-            'delete-user_messenger', // Может откреплять свои мессенджеры
-            'update-user_messenger', // Может обновлять настройки своих прикрепленных мессенджеров (например, toggle_notifications)
+            'get-list-user',
+            'read-user',
+            'update-user',
+            'read-role',
+            'read-permission',
+            'get-story-user',
+            'get-list-messenger',
+            'read-messenger',
+            'create-user_messenger',
+            'read-user_messenger',
+            'delete-user_messenger',
+            'update-user_messenger',
+            // Разрешения для ЛР10: Пользователь может управлять СВОИМ фото профиля
+            'upload-profile-picture',   // Загрузка фото профиля
+            'delete-profile-picture',   // Удаление фото профиля
+            'download-profile-picture', // Скачивание своего фото профиля
         ];
         $userPermissionIds = Permission::whereIn('code', $userPermissions)->pluck('id');
         $userRole->permissions()->sync($userPermissionIds);
 
-        // --- Гостевые разрешения (обновите, если нужно) ---
+        // --- Гостевые разрешения ---
         $guestPermissions = [
             'get-list-user',
             'read-role',
             'read-permission',
-            'get-list-messenger', // Гость тоже может видеть список мессенджеров
-            'read-messenger',     // И читать их информацию
+            'get-list-messenger',
+            'read-messenger',
         ];
         $guestPermissionIds = Permission::whereIn('code', $guestPermissions)->pluck('id');
         $guestRole->permissions()->sync($guestPermissionIds);
 
-        $this->command->info('Role-permission links configured successfully for LB9!');
+        $this->command->info('Role-permission links configured successfully for LB10!');
     }
 }

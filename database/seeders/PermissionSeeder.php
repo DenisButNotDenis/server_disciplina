@@ -10,7 +10,7 @@ class PermissionSeeder extends Seeder
 {
     /**
      * Запускает сид для заполнения таблицы разрешений.
-     * (Пункт 26, а также новые разрешения для ЛР9)
+     * (Пункт 26, а также новые разрешения для ЛР9, ЛР10)
      */
     public function run(): void
     {
@@ -21,9 +21,10 @@ class PermissionSeeder extends Seeder
             'user_role',
             'role_permission',
             'changelog',
-            'messenger',         // Новая сущность для ЛР9
-            'user_messenger',    // Новая сущность для ЛР9
-            'notification_log',  // Новая сущность для логов уведомлений
+            'messenger',
+            'user_messenger',
+            'notification_log',
+            'profile_picture', // Новая сущность для ЛР10
         ];
 
         foreach ($entities as $entity) {
@@ -36,7 +37,6 @@ class PermissionSeeder extends Seeder
                 "restore-{$entity}" => "Восстановление {$entity}",
             ];
 
-            // Новые разрешения для истории (из ЛР4)
             $permissions["get-story-{$entity}"] = "Получение истории изменений для {$entity}";
 
             foreach ($permissions as $code => $name) {
@@ -50,7 +50,6 @@ class PermissionSeeder extends Seeder
             }
         }
 
-        // Добавляем общее разрешение на просмотр всех логов (из ЛР4)
         Permission::firstOrCreate(
             ['code' => 'get-story-all'],
             [
@@ -59,7 +58,6 @@ class PermissionSeeder extends Seeder
             ]
         );
 
-        // Добавляем разрешение на откат изменений (из ЛР4)
         Permission::firstOrCreate(
             ['code' => 'revert-changelog'],
             [
@@ -81,7 +79,38 @@ class PermissionSeeder extends Seeder
             ['code' => 'get-notification-report'],
             [
                 'name' => 'Получение отчета по логам уведомлений',
-                'description' => 'Разрешение на получение сгенерированного отчета о логах уведомлений.', // Пункт 18, 19
+                'description' => 'Разрешение на получение сгенерированного отчета о логах уведомлений.',
+            ]
+        );
+
+        // Новые специфические разрешения для ЛР10
+        // (Пункт 7.a, 7.b, 15, 19)
+        Permission::firstOrCreate(
+            ['code' => 'upload-profile-picture'],
+            [
+                'name' => 'Загрузка фотографии профиля',
+                'description' => 'Разрешение пользователю загружать фотографии к своему профилю.',
+            ]
+        );
+        Permission::firstOrCreate(
+            ['code' => 'delete-profile-picture'],
+            [
+                'name' => 'Удаление фотографии профиля',
+                'description' => 'Разрешение пользователю удалять фотографию со своего профиля.',
+            ]
+        );
+        Permission::firstOrCreate(
+            ['code' => 'download-profile-picture'],
+            [
+                'name' => 'Скачивание своей фотографии профиля',
+                'description' => 'Разрешение пользователю скачивать свою оригинальную фотографию профиля.',
+            ]
+        );
+        Permission::firstOrCreate(
+            ['code' => 'get-profile-pictures-archive'],
+            [
+                'name' => 'Выгрузка архива фотографий пользователей',
+                'description' => 'Разрешение администратору выгружать архив со всеми актуальными фотографиями пользователей.',
             ]
         );
     }

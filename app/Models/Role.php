@@ -51,7 +51,8 @@ class Role extends Model
      */
     public function permissions(): BelongsToMany
     {
-        return $this->belongsToMany(Permission::class, 'roles_and_permissions', 'role_id', 'permission_id')
-                    ->wherePivot('deleted_at', null); // Учитываем мягкое удаление связей, если оно будет
+        // Удалено ->wherePivot('deleted_at', null), так как таблица roles_and_permissions
+        // не содержит колонку deleted_at для мягкого удаления.
+        return $this->belongsToMany(Permission::class, 'roles_and_permissions', 'role_id', 'permission_id');
     }
 }

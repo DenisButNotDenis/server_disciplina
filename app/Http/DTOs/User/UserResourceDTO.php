@@ -4,8 +4,13 @@ namespace App\Http\DTOs\User;
 
 use Spatie\LaravelData\Data;
 use Carbon\Carbon;
-use App\Http\DTOs\Role\RoleCollectionDTO; // Импортируем DTO для коллекции ролей
+use App\Http\DTOs\Role\RoleCollectionDTO;
+use App\Http\DTOs\File\FileResourceDTO; // Импортируем DTO для файла
 
+/**
+ * Класс DTO для представления одного пользователя.
+ * (Пункт 14 - Добавить свойство со ссылкой на аватар пользователя)
+ */
 final readonly class UserResourceDTO extends Data
 {
     public function __construct(
@@ -15,8 +20,12 @@ final readonly class UserResourceDTO extends Data
         public ?Carbon $birthday,
         public Carbon $createdAt,
         public Carbon $updatedAt,
-        public ?Carbon $deletedAt = null, // Добавляем, если пользователь может быть мягко удален
-        public RoleCollectionDTO $roles, // Коллекция ролей пользователя
+        public ?Carbon $deletedAt = null,
+        public RoleCollectionDTO $roles,
+        public bool $isTwoFactorEnabled,
+        public ?string $profilePictureUrl = null, // URL к оригинальному изображению
+        public ?string $profileAvatarUrl = null, // URL к аватару (128x128) (Пункт 14)
+        public ?FileResourceDTO $profilePicture = null, // DTO самой фотографии, если нужно больше данных
     ) {}
 
     /**
@@ -27,10 +36,25 @@ final readonly class UserResourceDTO extends Data
      */
     public static function fromModel(\App\Models\User $user): self
     {
-        // Убедимся, что роли загружены. Если они не были загружены ранее (например, через User::with('roles')->get()),
-        // то метод load() загрузит их.
         if (!$user->relationLoaded('roles')) {
             $user->load('roles');
+        }
+        // Загружаем отношение profilePicture, если оно не было загружено
+        if (!$user->relationLoaded('profilePicture')) {
+            $user->load('profilePicture');
+        }
+
+        // Получаем URL'ы фотографий
+        $profilePictureUrl = null;
+        $profileAvatarUrl = null;
+        $profilePictureDTO = null;
+
+        if ($user->profilePicture) {
+            // Используем FileResourceDTO для получения URL'ов и других данных файла
+            $fileDTO = FileResourceDTO::fromModel($user->profilePicture);
+            $profilePictureUrl = $fileDTO->url;
+            $profileAvatarUrl = $fileDTO->avatarUrl;
+            $profilePictureDTO = $fileDTO; // Передаем весь DTO файла
         }
 
         return new self(
@@ -40,8 +64,12 @@ final readonly class UserResourceDTO extends Data
             birthday: $user->birthday,
             createdAt: $user->created_at,
             updatedAt: $user->updated_at,
-            deletedAt: $user->deleted_at, // Передаем deleted_at
-            roles: RoleCollectionDTO::collect($user->roles), // Передаем коллекцию ролей в DTO
+            deletedAt: $user->deleted_at,
+            roles: RoleCollectionDTO::collect($user->roles),
+            isTwoFactorEnabled: $user->is_2fa_enabled,
+            profilePictureUrl: $profilePictureUrl,
+            profileAvatarUrl: $profileAvatarUrl,
+            profilePicture: $profilePictureDTO,
         );
     }
 }

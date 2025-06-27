@@ -7,15 +7,21 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use App\Traits\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany; // Добавляем HasMany
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo; // Добавлено для связи с File
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
-use App\Jobs\SendMessengerNotificationJob; // Импортируем Job
+use App\Jobs\SendMessengerNotificationJob;
 
 class User extends Authenticatable
 {
     use HasFactory, Notifiable, HasApiTokens, SoftDeletes;
 
+    /**
+     * The attributes that are mass assignable.
+     * Добавляем 'profile_picture_file_id'.
+     * @var array<int, string>
+     */
     protected $fillable = [
         'username',
         'email',
@@ -28,8 +34,13 @@ class User extends Authenticatable
         'two_factor_user_agent',
         'two_factor_last_code_requested_at',
         'two_factor_code_attempts',
+        'profile_picture_file_id', // Новое поле для ID фотографии профиля (Пункт 6)
     ];
 
+    /**
+     * The attributes that should be hidden for serialization.
+     * @var array<int, string>
+     */
     protected $hidden = [
         'password',
         'remember_token',
@@ -41,6 +52,10 @@ class User extends Authenticatable
         'two_factor_code_attempts',
     ];
 
+    /**
+     * The attributes that should be cast.
+     * @var array<string, string>
+     */
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
@@ -83,6 +98,15 @@ class User extends Authenticatable
     public function messengersRelation(): HasMany
     {
         return $this->hasMany(UserMessenger::class, 'user_id');
+    }
+
+    /**
+     * Получить фотографию профиля пользователя.
+     * (Пункт 6 - Ссылка на фотографию)
+     */
+    public function profilePicture(): BelongsTo
+    {
+        return $this->belongsTo(File::class, 'profile_picture_file_id');
     }
 
     /**
@@ -134,18 +158,17 @@ class User extends Authenticatable
 
     /**
      * Отправляет уведомление пользователю через все подтвержденные и разрешенные мессенджеры.
-     * (Пункт 12)
+     * (Пункт 12 ЛР9)
      *
      * @param string $message Сообщение для отправки.
      * @param string $eventName Имя события (например, 'user_registered', 'password_changed', 'role_assigned').
      */
     public function sendMessengerNotification(string $message, string $eventName): void
     {
-        // Загружаем только подтвержденные и разрешенные к уведомлениям связи с мессенджерами
         $confirmedUserMessengers = $this->messengersRelation()
                                         ->where('is_confirmed', true)
                                         ->where('allow_notifications', true)
-                                        ->with('messenger') // Загружаем связанные мессенджеры
+                                        ->with('messenger')
                                         ->get();
 
         if ($confirmedUserMessengers->isEmpty()) {
@@ -154,13 +177,12 @@ class User extends Authenticatable
         }
 
         foreach ($confirmedUserMessengers as $userMessenger) {
-            // Отправляем Job в очередь для каждого мессенджера
             SendMessengerNotificationJob::dispatch(
                 $this->id,
                 $userMessenger->messenger_id,
                 $userMessenger->id,
                 "Событие: {$eventName}\n" . $message
-            )->onQueue('notifications'); // Используем специальную очередь для уведомлений
+            )->onQueue('notifications');
             \Log::info("Notification Job dispatched for user {$this->id} via {$userMessenger->messenger->name} for event '{$eventName}'.");
         }
     }

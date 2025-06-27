@@ -11,7 +11,10 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\ChangeLogController;
 use App\Http\Controllers\GitWebhookController;
 use App\Http\Controllers\LogRequestController;
-use App\Http\Controllers\ReportController; // Импортируем новый контроллер для отчетов
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\MessengerController;
+use App\Http\Controllers\UserMessengerController;
+use App\Http\Controllers\ProfilePictureController; // Импортируем новый контроллер для фото профиля
 use App\Http\Middleware\AuthenticateApiToken;
 
 Route::get('/test', function () {
@@ -74,6 +77,12 @@ Route::prefix('permissions')->middleware([AuthenticateApiToken::class])->group(f
 Route::prefix('users/{user}')->middleware([AuthenticateApiToken::class])->group(function () {
     Route::post('roles', [UserRoleController::class, 'attachRole']);
     Route::delete('roles/{role}', [UserRoleController::class, 'detachRole']);
+
+    // Маршруты для управления фотографиями профиля пользователя (Пункт 7.a, 7.b, 10, 15)
+    Route::post('profile-picture', [ProfilePictureController::class, 'upload']);     // Загрузить фото профиля
+    Route::delete('profile-picture', [ProfilePictureController::class, 'delete']);   // Удалить фото профиля
+    Route::get('profile-picture/download/original', [ProfilePictureController::class, 'downloadOriginal']); // Скачать оригинал (Пункт 15)
+    Route::get('profile-picture/download/avatar', [ProfilePictureController::class, 'downloadAvatar']);     // Скачать аватар (опционально)
 });
 
 // Группа роутов для управления пользователями
@@ -103,27 +112,9 @@ Route::prefix('request-logs')->middleware([AuthenticateApiToken::class])->group(
     Route::get('/{id}', [LogRequestController::class, 'show']);
 });
 
-// Новая группа роутов для управления мессенджерами (Пункт 9)
-Route::prefix('messengers')->middleware([AuthenticateApiToken::class])->group(function () {
-    Route::get('/', [MessengerController::class, 'index']);       // Получить список мессенджеров
-    Route::get('/{messenger}', [MessengerController::class, 'show']); // Получить мессенджер по ID
-    Route::post('/', [MessengerController::class, 'store']);      // Создать мессенджер
-    Route::put('/{messenger}', [MessengerController::class, 'update']); // Обновить мессенджер
-    Route::delete('/{messenger}', [MessengerController::class, 'destroy']); // Удалить мессенджер
-});
-
-// Новая группа роутов для управления связями пользователя с мессенджерами (Пункт 9)
-Route::prefix('users/{user}/messengers')->middleware([AuthenticateApiToken::class])->group(function () {
-    Route::get('/', [UserMessengerController::class, 'index']);       // Получить список мессенджеров пользователя
-    Route::post('/', [UserMessengerController::class, 'attach']);     // Прикрепить мессенджер к пользователю
-    Route::delete('/{userMessenger}', [UserMessengerController::class, 'detach']); // Открепить мессенджер от пользователя
-
-    // Маршруты для подтверждения и управления уведомлениями (Пункт 10, 11)
-    Route::post('/{userMessenger}/verify', [UserMessengerController::class, 'verify']); // Подтвердить связку
-    Route::post('/{userMessenger}/toggle-notifications', [UserMessengerController::class, 'toggleNotifications']); // Включить/выключить уведомления
-});
-
-// Обновленная группа роутов для генерации отчетов (Пункт 18)
+// Группа роутов для генерации отчетов
 Route::prefix('reports')->middleware([AuthenticateApiToken::class])->group(function () {
-    Route::get('notifications', [ReportController::class, 'generateNotificationReport']); // Получить отчет по логам уведомлений
+    Route::get('notifications', [ReportController::class, 'generateNotificationReport']);
+    // Маршрут для скачивания архива с фотографиями (Пункт 19)
+    Route::get('photos-archive', [ProfilePictureController::class, 'downloadPhotosArchive']);
 });

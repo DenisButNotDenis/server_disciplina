@@ -59,6 +59,12 @@ return [
             'throw' => false,
             'report' => false,
         ],
+        'private' => [ // Добавляем новый диск для приватных файлов
+        'driver' => 'local',
+        'root' => storage_path('app/private'), // Папка для приватных файлов
+        'throw' => false,
+        'visibility' => 'private', // Важно: устанавливаем видимость как private
+        ],
 
     ],
 
