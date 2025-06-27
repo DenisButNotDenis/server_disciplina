@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use App\Traits\HasApiTokens; // Ваш кастомный трейт
+use App\Traits\HasApiTokens; // Ваш кастомный трейт, содержит логику токенов
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon; // Импортируем Carbon для работы с датами
@@ -60,31 +60,6 @@ class User extends Authenticatable
         'two_factor_code_expires_at' => 'datetime', // Приводим к Carbon
         'two_factor_last_code_requested_at' => 'datetime', // Приводим к Carbon
     ];
-
-    // Методы для работы с токенами (из HasApiTokens трейта)
-    // Внимание: Эти методы реализованы в трейте HasApiTokens,
-    // если они здесь дублируются, удалите дубликаты.
-    // Если трейт HasApiTokens не используется, тогда оставьте их здесь.
-    // Если у вас версия HasApiTokens, где эти методы уже есть, то просто убедитесь,
-    // что use HasApiTokens, и никаких дубликатов здесь нет, иначе будут конфликты.
-    // Я предполагаю, что вы используете трейт, поэтому оставляю только связи и методы 2FA.
-
-    /**
-     * Get the access tokens for the user.
-     */
-    public function accessTokens(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(AccessToken::class);
-    }
-
-    /**
-     * Get the refresh tokens for the user.
-     */
-    public function refreshTokens(): \Illuminate\Database\Eloquent\Relations\HasMany
-    {
-        return $this->hasMany(UserRefreshToken::class); // Используем UserRefreshToken, как в вашем коде
-    }
-
 
     /**
      * Метод для получения ролей, которыми обладает пользователь.

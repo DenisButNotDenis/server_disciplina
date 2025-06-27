@@ -10,6 +10,10 @@ use App\Http\DTOs\Role\RoleCollectionDTO; // Для ЛР3, если исполь
  * Класс DTO для вывода информации о пользователе.
  */
 final readonly class UserResourceDTO extends Data
+use App\Models\User; // Нужна модель User
+use Carbon\Carbon;
+
+class UserResourceDTO
 {
     public function __construct(
         public int $id,
@@ -46,6 +50,22 @@ final readonly class UserResourceDTO extends Data
             deletedAt: $user->deleted_at,
             roles: RoleCollectionDTO::collect($user->roles), // Для ЛР3
             isTwoFactorEnabled: $user->is_2fa_enabled, // Передаем статус 2FA
+            emailVerifiedAt: $user->email_verified_at,
+            createdAt: $user->created_at,
+            updatedAt: $user->updated_at
         );
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'username' => $this->username,
+            'email' => $this->email,
+            'birthday' => $this->birthday->format('Y-m-d'),
+            'email_verified_at' => $this->emailVerifiedAt?->toDateTimeString(), // Если null, то не форматируем
+            'created_at' => $this->createdAt->toDateTimeString(),
+            'updated_at' => $this->updatedAt->toDateTimeString(),
+        ];
     }
 }
