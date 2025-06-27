@@ -103,8 +103,27 @@ Route::prefix('request-logs')->middleware([AuthenticateApiToken::class])->group(
     Route::get('/{id}', [LogRequestController::class, 'show']);
 });
 
-// Новая группа роутов для генерации отчетов
+// Новая группа роутов для управления мессенджерами (Пункт 9)
+Route::prefix('messengers')->middleware([AuthenticateApiToken::class])->group(function () {
+    Route::get('/', [MessengerController::class, 'index']);       // Получить список мессенджеров
+    Route::get('/{messenger}', [MessengerController::class, 'show']); // Получить мессенджер по ID
+    Route::post('/', [MessengerController::class, 'store']);      // Создать мессенджер
+    Route::put('/{messenger}', [MessengerController::class, 'update']); // Обновить мессенджер
+    Route::delete('/{messenger}', [MessengerController::class, 'destroy']); // Удалить мессенджер
+});
+
+// Новая группа роутов для управления связями пользователя с мессенджерами (Пункт 9)
+Route::prefix('users/{user}/messengers')->middleware([AuthenticateApiToken::class])->group(function () {
+    Route::get('/', [UserMessengerController::class, 'index']);       // Получить список мессенджеров пользователя
+    Route::post('/', [UserMessengerController::class, 'attach']);     // Прикрепить мессенджер к пользователю
+    Route::delete('/{userMessenger}', [UserMessengerController::class, 'detach']); // Открепить мессенджер от пользователя
+
+    // Маршруты для подтверждения и управления уведомлениями (Пункт 10, 11)
+    Route::post('/{userMessenger}/verify', [UserMessengerController::class, 'verify']); // Подтвердить связку
+    Route::post('/{userMessenger}/toggle-notifications', [UserMessengerController::class, 'toggleNotifications']); // Включить/выключить уведомления
+});
+
+// Обновленная группа роутов для генерации отчетов (Пункт 18)
 Route::prefix('reports')->middleware([AuthenticateApiToken::class])->group(function () {
-    // Маршрут для запуска генерации отчета (Пункт 5)
-    Route::post('generate', [ReportController::class, 'generateReport']);
+    Route::get('notifications', [ReportController::class, 'generateNotificationReport']); // Получить отчет по логам уведомлений
 });

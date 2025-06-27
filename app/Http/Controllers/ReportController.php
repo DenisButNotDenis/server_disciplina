@@ -2,51 +2,63 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
-use App\Jobs\GenerateReportJob; // Импортируем нашу фоновую задачу
-use App\Models\User; // Для получения email администраторов
+use App\Models\NotificationLog; // Импортируем модель логов уведомлений
+use App\Http\DTOs\Report\NotificationReportDTO;
+use App\Http\DTOs\Report\NotificationReportCollectionDTO;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
- * Контроллер для запуска фоновых задач по генерации отчетов.
- * (Пункт 5, 9)
+ * Контроллер для генерации различных отчетов.
+ * (Пункт 18, 19)
  */
 class ReportController extends Controller
 {
     /**
-     * Диспетчеризирует задачу по генерации отчета.
-     * Отчет формируется в файл и отправляется администраторам.
-     * (Пункт 5)
+     * Генерирует отчет по логам уведомлений.
+     * (Пункт 18, 19)
      *
      * @param Request $request
      * @return JsonResponse
      */
-    public function generateReport(Request $request): JsonResponse
+    public function generateNotificationReport(Request $request): JsonResponse
     {
-        // Проверка разрешения: только администраторы могут генерировать отчеты
-        // (Пункт 9 - отчет отправляется администраторам, подразумевается, что они его и запрашивают)
-        if (!Auth::check() || !Auth::user()->hasPermission('generate-reports')) {
-            return response()->json(['message' => 'Недостаточно прав. Необходимо разрешение "generate-reports".'], 403);
+        // Пункт 19: Проверка доступа к методу
+        // Только пользователи с разрешением 'get-notification-report' могут генерировать этот отчет.
+        if (!Auth::check() || !Auth::user()->hasPermission('get-notification-report')) {
+            throw new AccessDeniedHttpException('Необходимое разрешение: get-notification-report');
         }
 
-        // Получаем email администраторов для "отправки" отчета (Пункт 9)
-        // В реальном приложении это могут быть email'ы из конфига или БД.
-        // Здесь для примера берем всех пользователей с ролью 'admin'.
-        $adminEmails = User::whereHas('roles', function ($query) {
-            $query->where('code', 'admin');
-        })->pluck('email')->toArray();
+        // Получаем все логи уведомлений, загружая связанные модели User и Messenger
+        // Пункт 18: Отчет включает данные из NotificationLog, User (username) и Messenger (name).
+        $logs = NotificationLog::with(['user', 'messenger'])
+                               ->orderBy('created_at', 'desc')
+                               ->get();
 
-        if (empty($adminEmails)) {
-            return response()->json(['message' => 'Нет зарегистрированных администраторов для отправки отчета.'], 400);
-        }
+        // Считаем статистику
+        $totalLogs = $logs->count();
+        $successfulSends = $logs->where('status', 'sent')->count();
+        $failedSends = $logs->where('status', 'failed')->count();
+        $skippedSends = $logs->where('status', 'skipped')->count();
+        $retryingSends = $logs->where('status', 'retrying')->count();
 
-        // Тип отчета (может быть передан в запросе, для гибкости)
-        $reportType = $request->input('report_type', 'Ежедневный отчет активности API'); // Пункт 8
 
-        // Диспетчеризуем задачу в очередь
-        GenerateReportJob::dispatch($reportType, $adminEmails);
+        // Преобразуем коллекцию моделей в коллекцию DTO для отчета
+        $logCollectionDTO = NotificationReportCollectionDTO::collect($logs);
 
-        return response()->json(['message' => 'Задача по генерации отчета поставлена в очередь.'], 202);
+        // Создаем и возвращаем финальный DTO отчета
+        $reportDTO = new NotificationReportDTO(
+            logs: $logCollectionDTO,
+            totalLogs: $totalLogs,
+            successfulSends: $successfulSends,
+            failedSends: $failedSends,
+            skippedSends: $skippedSends,
+            retryingSends: $retryingSends,
+        );
+
+        return response()->json($reportDTO->toArray(), 200);
     }
+
 }

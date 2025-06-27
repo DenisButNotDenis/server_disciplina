@@ -1,4 +1,4 @@
-?php
+<?php
 
 namespace App\Http\Controllers;
 
@@ -6,21 +6,21 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Http\DTOs\Auth\UserResourceDTO;
 use App\Http\DTOs\Auth\TokenResourceDTO;
-use App\Http\DTOs\Auth\TwoFactorAuthTokenDTO; // Импортируем новый DTO для 2FA
-use App\Http\Requests\TwoFactor\RequestTwoFactorCodeRequest; // Импортируем запрос 2FA кода
-use App\Http\Requests\TwoFactor\VerifyTwoFactorCodeRequest; // Импортируем запрос подтверждения 2FA
-use App\Http\Requests\TwoFactor\ToggleTwoFactorAuthRequest; // Импортируем запрос переключения 2FA
+use App\Http\DTOs\Auth\TwoFactorAuthTokenDTO;
+use App\Http\Requests\TwoFactor\RequestTwoFactorCodeRequest;
+use App\Http\Requests\TwoFactor\VerifyTwoFactorCodeRequest;
+use App\Http\Requests\TwoFactor\ToggleTwoFactorAuthRequest;
 use App\Models\User;
-use App\Models\AccessToken; // Модель для токенов доступа
-use App\Models\UserRefreshToken; // Модель для токенов обновления
+use App\Models\AccessToken;
+use App\Models\UserRefreshToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Cache; // Для кэширования временных 2FA токенов
-use Illuminate\Support\Facades\DB; // Для транзакций
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
@@ -28,6 +28,7 @@ class AuthController extends Controller
 {
     /**
      * Метод для регистрации нового пользователя.
+     * (Пункт 12 - Уведомление при Авторизации/Изменении данных/Назначении ролей)
      *
      * @param RegisterRequest $request
      * @return JsonResponse
@@ -43,6 +44,8 @@ class AuthController extends Controller
         ]);
 
         if ($user) {
+            // Отправляем уведомление о регистрации (Пункт 12)
+            $user->sendMessengerNotification("Новый пользователь '{$user->username}' успешно зарегистрирован.", 'user_registered');
             return response()->json(UserResourceDTO::fromModel($user)->toArray(), 201);
         }
 
@@ -51,7 +54,7 @@ class AuthController extends Controller
 
     /**
      * Метод для авторизации (входа) пользователя.
-     * (Пункт 2, 12, 14)
+     * (Пункт 12 - Уведомление при Авторизации)
      *
      * @param LoginRequest $request
      * @return JsonResponse
@@ -67,29 +70,25 @@ class AuthController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
+        // Отправляем уведомление о входе в систему (Пункт 12)
+        $user->sendMessengerNotification("Пользователь '{$user->username}' успешно вошел в систему.", 'user_login');
+
         // Если 2FA включена для пользователя
         if ($user->twoFactorAuthActive()) {
-            // Генерируем временный токен, разрешенный только для 2FA-операций
-            // Этот токен будет храниться в кэше и связан с ID пользователя
             $twoFactorToken = Str::random(80);
-            Cache::put('2fa_temp_token:' . $twoFactorToken, $user->id, now()->addMinutes(config('two_factor_auth.code_expiration_minutes') * 2)); // Срок действия в 2 раза дольше, чем код, чтобы дать время на запрос/перезапрос
+            Cache::put('2fa_temp_token:' . $twoFactorToken, $user->id, now()->addMinutes(config('two_factor_auth.code_expiration_minutes') * 2));
 
-            // Генерируем первый 2FA код
             $code = $user->generateTwoFactorCode(
                 $request->ip(),
                 $request->header('User-Agent'),
                 config('two_factor_auth.code_expiration_minutes')
             );
 
-            // Отправляем код (в реальном приложении это была бы отправка по SMS/Email)
-            // Логируем для демонстрации
             \Log::info("2FA Code for user {$user->id} ({$user->email}): {$code} (Client: {$request->ip()}/{$request->header('User-Agent')})");
 
-            // Возвращаем временный 2FA токен, который пользователь будет использовать для запроса/подтверждения кода
             return response()->json(new TwoFactorAuthTokenDTO(twoFactorToken: $twoFactorToken)->toArray(), 200);
         }
 
-        // Если 2FA НЕ включена, выдаем обычные токены доступа
         return $this->issueTokens($user);
     }
 
@@ -118,6 +117,8 @@ class AuthController extends Controller
         $plainTextToken = Str::substr($request->header('Authorization'), 7);
 
         if ($user->revokeAccessToken($plainTextToken)) {
+            // Уведомление о выходе (опционально, т.к. пользователь сам инициировал)
+            $user->sendMessengerNotification("Пользователь '{$user->username}' успешно вышел из системы.", 'user_logout');
             return response()->json(['message' => 'Successfully logged out.'], 200);
         }
         return response()->json(['message' => 'Failed to log out. Token might be invalid or already revoked.'], 500);
@@ -147,6 +148,8 @@ class AuthController extends Controller
         $user = Auth::user();
         $user->revokeAllAccessTokens();
         $user->revokeAllRefreshTokens();
+        // Уведомление о выходе со всех устройств
+        $user->sendMessengerNotification("Пользователь '{$user->username}' вышел из всех сессий.", 'user_logout_all');
         return response()->json(['message' => 'All tokens have been revoked. Please log in again.'], 200);
     }
 
@@ -179,15 +182,19 @@ class AuthController extends Controller
         if ($refreshTokenRecord->revoked) {
             $user->revokeAllAccessTokens();
             $user->revokeAllRefreshTokens();
+            $user->sendMessengerNotification("Обнаружена подозрительная активность: ваш токен обновления был использован повторно. Все ваши сессии аннулированы из соображений безопасности. Пожалуйста, войдите снова.", 'security_alert');
             return response()->json(['message' => 'Refresh token already used. All user tokens revoked for security.'], 401);
         }
 
         $refreshTokenRecord->update(['revoked' => true]);
+        // При успешном обновлении токена, также можно отправить уведомление (опционально)
+        $user->sendMessengerNotification("Ваши токены успешно обновлены.", 'tokens_refreshed');
         return $this->issueTokens($user);
     }
 
     /**
      * Метод для изменения пароля пользователя.
+     * (Пункт 12 - Уведомление при Изменении данных)
      *
      * @param Request $request
      * @return JsonResponse
@@ -212,6 +219,9 @@ class AuthController extends Controller
 
         $user->revokeAllAccessTokens();
         $user->revokeAllRefreshTokens();
+
+        // Отправляем уведомление об изменении пароля (Пункт 12)
+        $user->sendMessengerNotification("Пароль для аккаунта '{$user->username}' был успешно изменен. Все активные сессии аннулированы.", 'password_changed');
 
         return response()->json(['message' => 'Password changed successfully. All active tokens revoked. Please log in again.'], 200);
     }
@@ -250,7 +260,6 @@ class AuthController extends Controller
      */
     public function requestTwoFactorCode(RequestTwoFactorCodeRequest $request): JsonResponse
     {
-        // ID пользователя получен из временного токена 2FA в authorize() запроса
         /** @var User $user */
         $userId = $request->input('user_id_from_2fa_token');
         $user = User::find($userId);
@@ -259,7 +268,6 @@ class AuthController extends Controller
             throw new AccessDeniedHttpException('User not found or 2FA is not enabled.');
         }
 
-        // --- Логика ограничения частоты запросов (Rate Limiting) ---
         $clientIp = $request->ip();
         $userAgent = $request->header('User-Agent');
 
@@ -268,19 +276,16 @@ class AuthController extends Controller
         $globalThreshold = config('two_factor_auth.rate_limits.global.threshold');
         $globalDelay = config('two_factor_auth.rate_limits.global.delay_seconds');
 
-        // Проверка по конкретному клиенту (IP + User-Agent)
         if ($user->two_factor_code_attempts >= $clientThreshold &&
             $user->two_factor_client_ip === $clientIp &&
             $user->two_factor_user_agent === $userAgent
         ) {
-            // Если слишком много попыток с этого клиента, применяем задержку
             $lastRequestTime = $user->two_factor_last_code_requested_at;
             if ($lastRequestTime && $lastRequestTime->addSeconds($clientDelay)->isFuture()) {
                 throw new BadRequestHttpException('Too many requests from this client. Please wait ' . $clientDelay . ' seconds.');
             }
         }
 
-        // Проверка глобального лимита (для пользователя, без учета клиента)
         if ($user->two_factor_code_attempts >= $globalThreshold) {
             $lastRequestTime = $user->two_factor_last_code_requested_at;
             if ($lastRequestTime && $lastRequestTime->addSeconds($globalDelay)->isFuture()) {
@@ -288,23 +293,20 @@ class AuthController extends Controller
             }
         }
 
-        // Если предыдущий код был, его аннулируем (Пункт 9)
         if ($user->hasActiveTwoFactorCode()) {
-            $user->invalidateTwoFactorCode(); // Аннулирует текущий код и сбрасывает связанные поля
+            $user->invalidateTwoFactorCode();
         }
 
-        // Генерируем и сохраняем новый код
         $code = $user->generateTwoFactorCode(
             $clientIp,
             $userAgent,
             config('two_factor_auth.code_expiration_minutes')
         );
 
-        // Увеличиваем счетчик попыток
         $user->incrementTwoFactorCodeAttempts();
 
-        // Отправляем код (в реальном приложении: SMS/Email)
         \Log::info("NEW 2FA Code for user {$user->id} ({$user->email}): {$code} (Client: {$clientIp}/{$userAgent})");
+        $user->sendMessengerNotification("Новый код двухфакторной авторизации: <b>{$code}</b>. Код действителен {$codeExpirationMinutes} минут. Не передавайте его никому!", 'new_2fa_code');
 
         return response()->json(['message' => 'New 2FA code sent.'], 200);
     }
@@ -317,7 +319,6 @@ class AuthController extends Controller
      */
     public function verifyTwoFactorCode(VerifyTwoFactorCodeRequest $request): JsonResponse
     {
-        // ID пользователя получен из временного токена 2FA в authorize() запроса
         /** @var User $user */
         $userId = $request->input('user_id_from_2fa_token');
         $user = User::find($userId);
@@ -326,18 +327,17 @@ class AuthController extends Controller
             throw new AccessDeniedHttpException('User not found or 2FA is not enabled.');
         }
 
-        // Проверяем код
         if (!$user->verifyTwoFactorCode($request->two_factor_code)) {
-            // Увеличиваем счетчик попыток, если код неверный
             $user->incrementTwoFactorCodeAttempts();
             throw new BadRequestHttpException('Invalid or expired 2FA code.');
         }
 
-        // Код верен: отменяем 2FA код (Пункт 10) и сбрасываем счетчик попыток
         $user->invalidateTwoFactorCode();
         $user->resetTwoFactorCodeAttempts();
 
-        // Выдаем обычные токены доступа
+        // Уведомление о успешной 2FA авторизации (Пункт 12)
+        $user->sendMessengerNotification("Двухфакторная авторизация успешно пройдена для аккаунта '{$user->username}'.", '2fa_verified');
+
         return $this->issueTokens($user);
     }
 
@@ -353,20 +353,17 @@ class AuthController extends Controller
         $user = Auth::user();
         $targetState = $request->input('is_2fa_enabled_target');
 
-        // Валидация пароля и, если нужно, 2FA кода уже произошла в ToggleTwoFactorAuthRequest::authorize() и rules()
-
-        // Обновляем статус 2FA
         $user->is_2fa_enabled = $targetState;
         $user->save();
 
-        // Если 2FA была отключена, аннулируем текущий код и сбрасываем попытки
         if (!$targetState) {
             $user->invalidateTwoFactorCode();
             $user->resetTwoFactorCodeAttempts();
+            $user->sendMessengerNotification("Двухфакторная авторизация для аккаунта '{$user->username}' была отключена.", '2fa_disabled');
             return response()->json(['message' => 'Two-factor authentication disabled successfully.'], 200);
         }
 
-        // Если 2FA была включена, сообщаем об этом
+        $user->sendMessengerNotification("Двухфакторная авторизация для аккаунта '{$user->username}' была включена. Не забудьте подключить приложение-аутентификатор, если используете его!", '2fa_enabled');
         return response()->json(['message' => 'Two-factor authentication enabled successfully.'], 200);
     }
 }
