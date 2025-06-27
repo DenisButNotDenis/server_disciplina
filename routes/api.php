@@ -9,6 +9,7 @@ use App\Http\Controllers\UserRoleController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ChangeLogController;
+use App\Http\Controllers\GitWebhookController; // Импортируем новый контроллер
 use App\Http\Middleware\AuthenticateApiToken;
 
 Route::get('/test', function () {
@@ -20,10 +21,9 @@ Route::prefix('auth')->group(function () {
     Route::post('login', [AuthController::class, 'login']);
     Route::post('register', [AuthController::class, 'register']);
 
-    // Новые маршруты для 2FA (Пункт 16)
-    // Эти маршруты не требуют обычного Access Token, но требуют временный 2FA токен (Пункт 5, 14, 15)
-    Route::post('2fa/request-code', [AuthController::class, 'requestTwoFactorCode']); // Запрос нового кода
-    Route::post('2fa/verify-code', [AuthController::class, 'verifyTwoFactorCode']);   // Подтверждение кода
+    // Новые маршруты для 2FA
+    Route::post('2fa/request-code', [AuthController::class, 'requestTwoFactorCode']);
+    Route::post('2fa/verify-code', [AuthController::class, 'verifyTwoFactorCode']);
 
     Route::middleware([AuthenticateApiToken::class])->group(function () {
         Route::get('me', [AuthController::class, 'me']);
@@ -33,7 +33,7 @@ Route::prefix('auth')->group(function () {
         Route::post('refresh', [AuthController::class, 'refresh']);
         Route::post('change_password', [AuthController::class, 'changePassword']);
 
-        // Маршрут для включения/отключения 2FA (Пункт 16.c)
+        // Маршрут для включения/отключения 2FA
         Route::post('2fa/toggle', [AuthController::class, 'toggleTwoFactorAuth']);
     });
 });
@@ -91,3 +91,6 @@ Route::prefix('change-logs')->middleware([AuthenticateApiToken::class])->group(f
     Route::get('/', [ChangeLogController::class, 'index']);
     Route::post('{changeLog}/revert', [ChangeLogController::class, 'revert']);
 });
+
+// Маршрут для Git Webhook (Пункт 2, 3)
+Route::post('/hooks/git', [GitWebhookController::class, 'handle']);
